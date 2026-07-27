@@ -18,6 +18,7 @@
 | **METRICS.md** | North star par phase, funnels, instrumentation, rituels | La mesure |
 | **OPS.md** | Modération, qualification des leads, support, incidents | Le quotidien |
 | **DECISIONS.md** | Décisions ouvertes (ne pas trancher) + journal des décisions prises | L'arbitrage |
+| **DEPLOY.md** | Procédure exécutable de mise en production (CHECK 1-6) | Le déploiement |
 | architecture-hotelinvest.md | Document d'architecture initial (v1, historique) | Obsolète où il contredit CLAUDE.md/PLAN.md v2 |
 
 ## Ordre de résolution des conflits
@@ -46,6 +47,10 @@
 
 ## État du projet à ce jour
 
-- Documentation : complète (11 fichiers).
+- Documentation : complète (12 fichiers).
 - Code : Phase 0 (MVP de validation marché) implémentée — voir PLAN.md et README.md.
 - Décisions bloquantes avant mise en ligne : D1 (nom), D2 (statut juridique).
+- Déploiement (DEPLOY.md) : CHECK 1 vert ; bloqué en CHECK 2, aucun hébergement
+  choisi par l'utilisateur pour l'instant. Artefacts de déploiement préparés
+  (Dockerfile, docker-compose.yml, Caddyfile, setup.sh) — non testés par un build
+  réel (pas de Docker-in-Docker dans cet environnement de session).

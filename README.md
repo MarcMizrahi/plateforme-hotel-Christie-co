@@ -11,7 +11,7 @@ Toute la documentation vit à la racine du dépôt. **Commencer par `INDEX.md`**
 le rôle de chaque fichier et l'ordre de résolution des conflits :
 
 `INDEX.md` · `CLAUDE.md` · `PLAN.md` · `MARKET.md` · `BUSINESS.md` · `ACQUISITION.md` ·
-`BRAND.md` · `RISKS.md` · `METRICS.md` · `OPS.md` · `DECISIONS.md`
+`BRAND.md` · `RISKS.md` · `METRICS.md` · `OPS.md` · `DECISIONS.md` · `DEPLOY.md`
 
 Le projet est actuellement en **Phase 0** (`PLAN.md`) : un MVP de validation marché
 (estimation en ligne + acquisition SEO), volontairement en stack allégée (pas de monorepo,
@@ -63,3 +63,10 @@ et permet un export CSV (`/admin/export`).
 - Tableau de bord admin + export CSV.
 
 Voir `PLAN.md` pour le détail des tâches et le GATE de décision Go/No-go.
+
+## Déploiement
+
+Voir `DEPLOY.md` pour la procédure complète (CHECK 1-6). Artefacts déjà préparés dans
+le dépôt : `Dockerfile`, `docker-compose.yml` (services `db`/`app`/`migrate`/`caddy`),
+`Caddyfile`, `setup.sh`, `.env.docker.example`. Non testés par un build Docker réel à
+ce stade (aucun hébergement choisi, cf. `INDEX.md`).
