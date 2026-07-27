@@ -30,9 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (.env.example is committed on purpose — cf. CLAUDE.md §9)
+# env files (.env.example / .env.docker.example are committed on purpose — cf. CLAUDE.md §9)
 .env*
 !.env.example
+!.env.docker.example
 
 # vercel
 .vercel

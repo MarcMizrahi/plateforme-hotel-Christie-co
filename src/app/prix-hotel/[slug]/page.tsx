@@ -61,7 +61,7 @@ export default async function PrixHotelPage({ params }: PageProps) {
       ? tformat(fr.prixHotel.regionTitle, { name })
       : tformat(fr.prixHotel.departmentTitle, { name });
 
-  const table = await getCoefficientTable(
+  const table = getCoefficientTable(
     entity.region.slug,
     entity.kind === "department" ? entity.department.slug : undefined
   );

@@ -93,6 +93,26 @@ localisation France. À trancher en Phase 6, sans impact avant.
   navigateur explicite. Réversible : à réintroduire en Phase 1 si des tests e2e
   navigateur (parcours NDA, etc.) sont priorisés.
 
+- **DP12 — [2026-07] Les pages SEO `/prix-hotel/*` lisent les coefficients statiques
+  du dépôt, pas la table `CoefficientValo`.** Justification : ces pages sont
+  intégralement prérendues au build, donc leur contenu est figé jusqu'au déploiement
+  suivant — la lecture en base n'apportait aucune fraîcheur mais imposait un Postgres
+  joignable au moment du build, ce qui faisait échouer la CI et le build de l'image
+  Docker. Le seed dérive la table de ces mêmes constantes : valeurs identiques
+  (vérifié). Le moteur d'estimation continue de lire la table à l'exécution, donc la
+  vocation « éditable par l'admin » (OPS.md §7) est préservée là où elle a du sens.
+  Réversible : rebasculer ces pages en rendu dynamique/ISR si l'on veut un jour que
+  les modifications admin s'y reflètent sans redéploiement.
+- **DP13 — [2026-07] `prisma generate` en `postinstall`** plutôt qu'une étape explicite
+  dans chaque pipeline. Justification : le client généré est gitignoré ; un seul point
+  couvre CI, build d'image et installation locale, et supprime une classe d'erreurs
+  « module not found » à chaque nouvel environnement. Réversible sans conséquence.
+- **DP14 — [2026-07] L'image applicative est construite par la CI et publiée sur GHCR ;
+  le serveur ne compile rien** (`docker-compose.yml` : `image: ${APP_IMAGE}`).
+  Décision de l'utilisateur, prise en session. Conséquence : mises à jour par `pull`
+  (DEPLOY.md §7), rollback en repointant `APP_IMAGE` sur un tag antérieur, et
+  authentification `docker login ghcr.io` requise sur le serveur si le dépôt est privé.
+
 ---
 
 ## Règles pour Claude Code
