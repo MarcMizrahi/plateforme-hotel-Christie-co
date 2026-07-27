@@ -22,7 +22,9 @@ services:
       retries: 10
 
   app:
-    image: ${APP_IMAGE}
+    # Valeur de repli : sans elle, un `docker compose up -d db` (usage courant en local,
+    # où seule la base est utile) échoue tant qu'APP_IMAGE n'est pas défini.
+    image: ${APP_IMAGE:-ghcr.io/marcmizrahi/plateforme-hotel-christie-co:latest}
     pull_policy: always
     restart: unless-stopped
     env_file: .env
