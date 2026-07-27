@@ -1,0 +1,123 @@
+{
+  "site": {
+    "name": "HotelMarket",
+    "tagline": "Sachez ce que vaut votre hôtel.",
+    "description": "Estimation gratuite et confidentielle de la valeur de votre hôtel : murs, fonds de commerce ou les deux. Données de marché françaises, méthode expliquée."
+  },
+  "nav": {
+    "home": "Accueil",
+    "estimation": "Estimer mon hôtel",
+    "barometre": "Baromètre des prix",
+    "guides": "Guides"
+  },
+  "footer": {
+    "rights": "Tous droits réservés.",
+    "legal": "Mentions légales",
+    "confidentiality": "Confidentialité",
+    "cgu": "CGU",
+    "disclaimer": "Les estimations fournies sont indicatives et ne remplacent pas une expertise réalisée par un professionnel de la transaction hôtelière."
+  },
+  "home": {
+    "heroTitle": "Sachez ce que vaut votre hôtel.",
+    "heroSubtitle": "Une estimation gratuite et confidentielle en 5 minutes, fondée sur les données du marché hôtelier français.",
+    "heroCta": "Estimer mon hôtel gratuitement",
+    "trustPoints": [
+      "Gratuit et sans engagement",
+      "Confidentiel : aucune diffusion publique de vos données",
+      "Méthode expliquée : multiple d'EBITDA et €/chambre"
+    ],
+    "barometreTitle": "Le marché hôtelier en quelques chiffres",
+    "barometreCta": "Voir le baromètre complet",
+    "guidesTitle": "Comprendre la transmission hôtelière",
+    "guidesCta": "Lire le guide"
+  },
+  "estimationForm": {
+    "title": "Estimer mon hôtel",
+    "steps": {
+      "location": "Localisation",
+      "type": "Type de transaction",
+      "characteristics": "Caractéristiques",
+      "financials": "Chiffres (facultatif)",
+      "email": "Recevoir mon estimation"
+    },
+    "fields": {
+      "region": "Région",
+      "department": "Département",
+      "city": "Ville (facultatif)",
+      "transactionType": "Type de transaction",
+      "roomCount": "Nombre de chambres",
+      "starRating": "Classement",
+      "hasLicence4": "L'établissement dispose d'une licence IV",
+      "revenue": "Chiffre d'affaires annuel (€, facultatif)",
+      "ebitda": "EBITDA annuel (€, facultatif)",
+      "email": "Adresse email",
+      "saleIntention": "Envisagez-vous de vendre ?",
+      "consentContact": "J'accepte d'être recontacté(e) au sujet de la transmission de mon établissement (RGPD, désinscription possible à tout moment)."
+    },
+    "transactionTypes": {
+      "MURS": "Murs seuls",
+      "FONDS": "Fonds de commerce seul",
+      "MURS_FONDS": "Murs et fonds",
+      "GERANCE": "Location-gérance"
+    },
+    "starRatings": {
+      "0": "Non classé",
+      "1": "1 étoile",
+      "2": "2 étoiles",
+      "3": "3 étoiles",
+      "4": "4 étoiles",
+      "5": "5 étoiles"
+    },
+    "saleIntentions": {
+      "LESS_THAN_1_YEAR": "Oui, dans moins d'un an",
+      "ONE_TO_TWO_YEARS": "Oui, dans 1 à 2 ans",
+      "CURIOSITY": "Non, simple curiosité"
+    },
+    "financialsHint": "Ces informations restent confidentielles. Elles affinent la fourchette mais ne sont pas obligatoires.",
+    "submit": "Voir mon estimation",
+    "next": "Continuer",
+    "back": "Retour",
+    "errors": {
+      "required": "Ce champ est obligatoire.",
+      "email": "Adresse email invalide.",
+      "consentRequired": "Le consentement est requis pour recevoir votre estimation par email.",
+      "generic": "Une erreur est survenue. Merci de réessayer."
+    }
+  },
+  "estimationResult": {
+    "title": "Votre estimation",
+    "rangeLabel": "Fourchette de valorisation estimée",
+    "methodTitle": "Méthode de calcul",
+    "disclaimer": "Cette estimation est indicative et fondée sur des ordres de grandeur de marché. Elle ne remplace pas une expertise réalisée par un professionnel de la transaction hôtelière.",
+    "emailSentTitle": "Rapport envoyé",
+    "emailSentBody": "Nous venons de vous envoyer le détail de cette estimation par email.",
+    "ctaBack": "Retour à l'accueil"
+  },
+  "prixHotel": {
+    "regionTitle": "Prix d'un hôtel à vendre en {name}",
+    "departmentTitle": "Prix d'un hôtel à vendre – {name}",
+    "intro": "Combien vaut un hôtel indépendant aujourd'hui ? Voici les ordres de grandeur du marché, par classement, et une estimation gratuite personnalisée en 5 minutes.",
+    "tableTitle": "Fourchettes indicatives par classement",
+    "tableStarHeader": "Classement",
+    "tablePriceHeader": "€ / chambre",
+    "tableMultipleHeader": "Multiple d'EBITDA",
+    "departmentsInRegion": "Départements de la région",
+    "backToRegion": "Retour à la région {name}",
+    "ctaTitle": "Envie d'une estimation précise pour votre établissement ?",
+    "cta": "Estimer mon hôtel gratuitement",
+    "methodologyNote": "Méthodologie : fourchettes calculées à partir d'une table de coefficients par région et classement (multiple d'EBITDA, prix au €/chambre), croisées avec les ordres de grandeur du marché hôtelier français. Estimation indicative, à affiner au cas par cas.",
+    "nationalContext": "Le marché hôtelier français en quelques chiffres"
+  },
+  "admin": {
+    "loginTitle": "Espace admin",
+    "passwordLabel": "Mot de passe",
+    "loginSubmit": "Se connecter",
+    "loginError": "Mot de passe incorrect.",
+    "dashboardTitle": "Tableau de bord",
+    "leadsTitle": "Leads vendeurs",
+    "exportCsv": "Exporter en CSV",
+    "logout": "Se déconnecter",
+    "funnelTitle": "Funnel de conversion",
+    "sourcesTitle": "Sources d'acquisition"
+  }
+}

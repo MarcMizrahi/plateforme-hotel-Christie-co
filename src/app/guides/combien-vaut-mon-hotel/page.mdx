@@ -1,0 +1,58 @@
+import { GuideCta } from "@/components/features/guide-cta";
+
+export const metadata = {
+  title: "Combien vaut mon hôtel ?",
+  description:
+    "Les méthodes utilisées pour valoriser un hôtel indépendant en France : multiple d'EBITDA, prix au €/chambre, et les facteurs qui font varier la fourchette.",
+  alternates: { canonical: "/guides/combien-vaut-mon-hotel" },
+};
+
+<div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+
+# Combien vaut mon hôtel ?
+
+C'est la première question que se pose tout propriétaire qui envisage, même vaguement, de
+transmettre son établissement. La réponse honnête tient en une phrase : cela dépend, mais on
+peut l'encadrer sérieusement avec quelques méthodes reconnues par la profession.
+
+## Les deux méthodes de référence
+
+**Le multiple d'EBITDA.** L'EBITDA (excédent brut d'exploitation, avant amortissements et frais
+financiers) mesure la rentabilité réelle de l'exploitation. Les professionnels de la transaction
+hôtelière appliquent à cet EBITDA un multiple qui varie selon le classement, l'emplacement et la
+qualité de l'exploitation — généralement de 2,5 à plus de 10 fois l'EBITDA annuel. Un hôtel non
+classé en zone rurale et un 4 étoiles bien placé en métropole ne jouent pas dans la même catégorie.
+
+**Le prix au €/chambre.** Complémentaire, cette méthode rapporte la valeur totale (murs et fonds,
+ou fonds seul selon le montage) au nombre de chambres. Elle sert de recoupement : un hôtel dont le
+prix au €/chambre s'écarte fortement des références locales mérite qu'on comprenne pourquoi.
+
+En pratique, un professionnel croise les deux, plus une lecture du marché local (rareté de l'offre,
+dynamique touristique, transactions comparables récentes).
+
+## Ce qui fait varier la fourchette
+
+- **Le classement** (étoiles Atout France) reste le facteur le plus structurant : il conditionne à
+  la fois le niveau de RevPAR atteignable et le multiple appliqué.
+- **La localisation** : une même catégorie vaut sensiblement plus en Île-de-France, sur la Côte
+  d'Azur ou dans les grandes métropoles qu'en zone rurale peu touristique.
+- **Le type de transaction** : murs et fonds ensemble, murs seuls (loués à un exploitant), fonds de
+  commerce seul, ou location-gérance — chaque montage a sa propre logique de valorisation, le fonds
+  seul valant typiquement une fraction de l'ensemble murs+fonds.
+- **La qualité de l'exploitation** : taux d'occupation, RevPAR, état des équipements, travaux à
+  prévoir (mise aux normes ERP, accessibilité, performance énergétique) pèsent directement sur le
+  prix retenu par un acquéreur sérieux.
+- **Les actifs annexes** : une licence IV, un restaurant en propre, un parking, une piscine ou un
+  spa sont des éléments de valeur, pas des détails.
+
+## Notre estimation en ligne
+
+Notre moteur d'estimation applique ces deux méthodes à partir d'une table de coefficients par
+région et par classement, construite sur les ordres de grandeur du marché hôtelier français. Le
+résultat est une fourchette, pas un chiffre unique : c'est une estimation indicative, pensée pour
+vous donner un premier repère fiable — pas pour remplacer l'expertise d'un professionnel de la
+transaction au moment de fixer un prix de vente définitif.
+
+<GuideCta campaign="guide-combien-vaut-mon-hotel" />
+
+</div>

@@ -1,0 +1,118 @@
+// Phase 0 (MVP de validation marché) — cf. PLAN.md §0.1.
+// Schéma volontairement minimal : Estimation, EmailLead, CoefficientValo, AnalyticsEvent.
+// Le modèle complet (User, Listing, Agency...) arrive en Phase 1 — cf. CLAUDE.md §4.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionType {
+  MURS
+  FONDS
+  MURS_FONDS
+  GERANCE
+}
+
+enum SaleIntention {
+  LESS_THAN_1_YEAR
+  ONE_TO_TWO_YEARS
+  CURIOSITY
+}
+
+/// Une estimation soumise par un propriétaire. Montants en centimes (jamais Float) — cf. CLAUDE.md §4.
+model Estimation {
+  id String @id @default(cuid())
+
+  email String
+
+  transactionType TransactionType
+
+  regionSlug     String
+  region         String
+  departmentSlug String
+  department     String
+  city           String?
+
+  roomCount   Int
+  starRating  Int
+  hasLicence4 Boolean @default(false)
+
+  revenueCents Int?
+  ebitdaCents  Int?
+
+  valueLowCents  Int
+  valueHighCents Int
+  methodNotes    String
+
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  referrer    String?
+
+  pdfUrl String?
+
+  emailLead EmailLead?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([regionSlug])
+  @@index([departmentSlug])
+}
+
+/// Qualification RGPD-consentie d'un vendeur — LA donnée qui valide le projet (PLAN.md GATE).
+model EmailLead {
+  id String @id @default(cuid())
+
+  estimation   Estimation @relation(fields: [estimationId], references: [id], onDelete: Cascade)
+  estimationId String     @unique
+
+  email String
+
+  saleIntention   SaleIntention
+  consentContact  Boolean       @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([saleIntention])
+  @@index([createdAt])
+}
+
+/// Table de coefficients par région × classement — seedée avec MARKET.md §5, éditable plus tard sans déploiement.
+model CoefficientValo {
+  id String @id @default(cuid())
+
+  regionSlug String
+  starRating Int
+
+  ebitdaMultipleLow  Float
+  ebitdaMultipleHigh Float
+
+  pricePerRoomLowCents  Int
+  pricePerRoomHighCents Int
+
+  ebitdaMarginDefault Float @default(0.28)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([regionSlug, starRating])
+}
+
+/// Source de vérité interne des événements de conversion, indépendante du script analytics tiers — METRICS.md §5.
+model AnalyticsEvent {
+  id String @id @default(cuid())
+
+  name      String
+  sessionId String
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([name])
+  @@index([sessionId])
+}
