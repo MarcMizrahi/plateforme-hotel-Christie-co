@@ -31,27 +31,31 @@ fi
 
 if [ ! -f .env.docker ]; then
   cp .env.docker.example .env.docker
-  echo "==> .env.docker créé depuis .env.docker.example — À COMPLÉTER : POSTGRES_PASSWORD, DOMAIN."
+  echo "==> .env.docker créé depuis .env.docker.example — À COMPLÉTER : POSTGRES_PASSWORD, DOMAIN, APP_IMAGE."
 fi
 
 echo "==> Démarrage de la base de données..."
 docker compose --env-file .env.docker up -d db
 
-echo "==> Build de l'image applicative (stage run)..."
-docker compose --env-file .env.docker build app
-
 cat <<'EOF'
 
 ==> setup.sh terminé.
 
+L'image applicative est construite par la CI et publiée sur GHCR : rien n'est compilé
+ici. Repo privé → `docker login ghcr.io` une fois (PAT avec le scope read:packages).
+
 Étapes restantes (manuelles, volontairement pas automatiques) :
-  1. Vérifier/compléter .env et .env.docker (secrets prod).
-  2. Lancer les migrations :
-       docker compose --env-file .env.docker --profile tools run --rm migrate
-  3. Seeder les coefficients de valorisation (réutilise l'image du stage build,
-     qui a tsx et les devDependencies — l'image app finale ne les a pas) :
-       docker compose --env-file .env.docker --profile tools run --rm migrate npx tsx prisma/seed.ts
-  4. Démarrer l'application :
+  1. Vérifier/compléter .env et .env.docker (secrets prod, APP_IMAGE).
+  2. Récupérer l'image :
+       docker compose --env-file .env.docker pull app
+  3. Lancer les migrations :
+       docker compose --env-file .env.docker run --rm app npx --yes prisma@7.9.1 migrate deploy
+  4. Seeder les coefficients de valorisation (one-shot, première installation).
+     Le seed est un script TypeScript (tsx) absent de l'image de production : le
+     lancer depuis une machine disposant du dépôt, DATABASE_URL pointant sur la
+     base de prod :
+       DATABASE_URL="postgresql://..." pnpm db:seed
+  5. Démarrer l'application :
        docker compose --env-file .env.docker up -d app caddy
-  5. CHECK 4 de DEPLOY.md : curl -s localhost:3000/api/health
+  6. CHECK 4 de DEPLOY.md : curl -s localhost:3000/api/health
 EOF

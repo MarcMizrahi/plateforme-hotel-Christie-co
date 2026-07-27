@@ -138,6 +138,11 @@ docker compose --env-file .env.docker up -d app
 **CHECK 4** : `curl -s localhost:3000/api/health` → 200 (créer la route health si absente :
 elle vérifie la connexion DB et renvoie `{status:"ok"}`).
 
+Première installation uniquement — seeder les coefficients de valorisation, sans quoi
+le moteur d'estimation ne renverra rien. Le seed est un script TypeScript (tsx), absent
+de l'image de production : le lancer depuis une machine ayant le dépôt, avec
+`DATABASE_URL` pointant sur la base de prod : `pnpm db:seed`.
+
 ## 5. Vérification fonctionnelle post-déploiement (obligatoire)
 
 Depuis l'extérieur, sur https://monsite.fr :
@@ -174,18 +179,35 @@ crontab -l 2>/dev/null; echo '0 3 * * * docker compose -f ~/app/docker-compose.y
 
 ## 7. Mises à jour ultérieures (procédure standard)
 
+L'image n'est plus construite sur le serveur : la CI la publie sur GHCR, le serveur `pull`.
+
 ```bash
-cd ~/app && git pull
-docker compose --env-file .env.docker build app
-docker compose --env-file .env.docker run --rm app npx prisma migrate deploy
+cd ~/app
+docker compose --env-file .env.docker pull app
+docker compose --env-file .env.docker run --rm app npx --yes prisma@7.9.1 migrate deploy
 docker compose --env-file .env.docker up -d app     # coupure ~2-5 s, acceptable Phase 0
 git tag deploy-$(date +%Y%m%d-%H%M) && git push --tags
 ```
 Vérif post-update minimale : /api/health + un parcours d'estimation.
 
+Repo privé : `docker login ghcr.io` une seule fois sur le serveur, avec un PAT
+portant le scope `read:packages` — seul secret à créer côté serveur.
+
+Deux points sur la ligne de migration :
+- Le CLI Prisma est récupéré par `npx --yes prisma@<version>` (réseau requis) et non
+  embarqué dans l'image : la sortie standalone de Next ne trace que ce que le code
+  applicatif importe, et le CLI n'en fait pas partie. La version est épinglée
+  volontairement — **la garder alignée avec `devDependencies.prisma` du dépôt**.
+  L'image embarque en revanche `prisma/` et `prisma.config.ts`, nécessaires au CLI.
+- Alternative sans réseau ni épinglage manuel : laisser la CI jouer les migrations
+  (le job `migrate` de `.github/workflows/main.yml` le fait déjà avec le secret
+  `DATABASE_URL`) et retirer cette ligne. À privilégier si la base est joignable
+  depuis GitHub Actions ; à garder ici si la base n'est accessible que du serveur.
+
 ## 8. Rollback
 
-- Code : `git checkout <tag-précédent>` puis rebuild + up (étapes §7 sans le pull).
+- Code : repasser `APP_IMAGE` sur le tag précédent dans `.env.docker` (les images sont
+  taguées par sha et par `deploy-*`), puis `pull` + `up -d` (étapes §7).
 - Base : les migrations Prisma ne se rollbackent pas automatiquement → en cas de
   migration défaillante, restaurer le dernier backup (§6) APRÈS confirmation
   explicite de l'utilisateur (règle 0.2), puis redéployer le tag précédent.
@@ -201,40 +223,40 @@ copie hors-site des backups, contenu des mentions légales).
 
 ---
 
-## Note de session (préparation, hébergement non encore choisi)
+## Note de session (CI Azure/GHCR en place, hébergement pas encore provisionné)
 
-À la date de cette note, l'utilisateur n'a pas encore de serveur/hébergeur (réponse
-explicite en session). CHECK 1 a été exécuté avec succès (build/lint/test verts,
-greps propres — nom de marque paramétré via `NEXT_PUBLIC_BRAND_NAME`, différence de
-nom mineure et sans impact avec `NEXT_PUBLIC_SITE_NAME` ci-dessus). Le reste de la
-procédure (§2 et suivants) est bloqué tant qu'un hébergement n'existe pas : DNS §2
-ne peut pas être vérifié sans IP de serveur.
+CHECK 1 est vert (build/lint/test + greps propres). Le nom de marque est paramétré via
+`NEXT_PUBLIC_BRAND_NAME` (et non `NEXT_PUBLIC_SITE_NAME` cité plus haut : différence de
+nom sans impact, D1 toujours ouverte).
 
-En préparation (« shovel-ready », committé dans le dépôt) :
-- `next.config.ts` : `output: "standalone"` ajouté.
-- `src/app/api/health/route.ts` : healthcheck DB pour CHECK 4/6 et le monitoring.
+CHECK 2+ restent bloqués : ni serveur ni base de production à ce jour. Le workflow
+`.github/workflows/main.yml` cible Azure Web App + GHCR ; il suppose des ressources et
+des secrets qui doivent exister avant de pouvoir aboutir :
+`AZURE_WEBAPP_PUBLISH_PROFILE`, `DATABASE_URL` (secrets) et `AZURE_WEBAPP_NAME` (variable).
+
+Déjà en place dans le dépôt :
+- `next.config.ts` : `output: "standalone"`.
+- `src/app/api/health/route.ts` : healthcheck DB (CHECK 4/6 et monitoring).
 - `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.dockerignore`, `setup.sh`,
   `.env.docker.example`.
+- `docker-compose.yml` : le service `app` consomme l'image publiée (`${APP_IMAGE}`),
+  il ne construit plus rien sur le serveur.
 
-**Écart assumé par rapport au §4 tel qu'écrit** : le stage final `run` du Dockerfile
-ne contient que la sortie `standalone` de Next (traçage automatique des dépendances),
-qui n'inclut PAS le CLI Prisma ni ses moteurs — nécessaires à `prisma migrate deploy`
-mais jamais importés par le code applicatif, donc invisibles au traçage. La commande
-`docker compose run --rm app npx prisma migrate deploy` telle qu'écrite plus haut
-**échouerait** contre cette image finale. `docker-compose.yml` définit donc un service
-`migrate` séparé (`target: build`, profil `tools`, mêmes variables `.env`) qui a le
-node_modules complet. Commandes réellement à utiliser :
-```bash
-docker compose --env-file .env.docker --profile tools run --rm migrate
-docker compose --env-file .env.docker --profile tools run --rm migrate npx tsx prisma/seed.ts
-```
-Alternative plus proche du texte d'origine si préférée : ajouter `prisma`, `@prisma/engines`
-et `dotenv` dans l'image `run` via des `COPY --from=build` supplémentaires plutôt que
-d'introduire un service séparé — non retenu ici pour garder l'image de service (`app`)
-la plus petite et la plus proche du strict nécessaire à l'exécution.
+**Corrections rendues nécessaires par la CI** (le build échouait avant, de deux façons) :
+1. `prisma generate` n'était joué nulle part en CI et le client généré est gitignoré →
+   ajouté en `postinstall` du `package.json`, ce qui couvre CI, Docker et install locale.
+2. Les pages `/prix-hotel/[slug]`, entièrement prérendues, lisaient la table
+   `CoefficientValo` : le build exigeait donc un Postgres joignable — impossible en CI
+   et au build d'image. Elles lisent désormais les constantes statiques du dépôt
+   (`src/data/coefficients.ts` × modificateurs géographiques), d'où le seed tire déjà
+   ces mêmes valeurs. Aucun changement de valeur affichée, et la dépendance était de
+   toute façon illusoire : des pages figées au build ne reflétaient pas les éventuelles
+   modifications ultérieures en base. Le moteur d'estimation, lui, continue de lire la
+   table à l'exécution (éditable par l'admin — OPS.md §7). Verrouillé par des tests
+   (`src/lib/valuation.test.ts`) qui comparent les deux sources.
 
-**Non vérifié** : le Docker daemon n'est pas disponible dans cet environnement
-d'exécution sandboxé (`dockerd` ne démarre pas — pas de Docker-in-Docker ici). Les
-fichiers ci-dessus sont écrits avec soin mais **n'ont pas pu être testés par un build
-réel**. Retester `docker compose --env-file .env.docker build` dès le premier accès
-serveur, avant toute autre étape, et corriger si besoin.
+**Non vérifié — à retester au premier déploiement réel** : le Docker daemon n'est pas
+disponible dans l'environnement de session (pas de Docker-in-Docker), donc ni le build
+d'image ni la ligne `npx --yes prisma@... migrate deploy` du §7 n'ont pu être exécutés.
+Le build applicatif lui-même a en revanche été validé sans base joignable, ce qui était
+le point de rupture principal.

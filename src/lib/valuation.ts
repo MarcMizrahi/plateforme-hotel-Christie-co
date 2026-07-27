@@ -1,7 +1,6 @@
 import { DEPARTMENTS_BY_SLUG, REGIONS_BY_SLUG, effectiveModifier, regionOfDepartment } from "@/data/geo";
-import { DEFAULT_EBITDA_MARGIN, TRANSACTION_TYPE_FACTOR } from "@/data/coefficients";
+import { BASE_COEFFICIENTS, DEFAULT_EBITDA_MARGIN, TRANSACTION_TYPE_FACTOR } from "@/data/coefficients";
 import type { CoefficientValo } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
 
 export type TransactionTypeValue = "MURS" | "FONDS" | "MURS_FONDS" | "GERANCE";
 
@@ -124,27 +123,30 @@ export interface CoefficientRow {
  * Table de coefficients (en euros, par classement) pour une région, éventuellement
  * affinée pour un département dont le marché diffère nettement de sa région
  * (ex. Paris) — utilisée par les pages SEO /prix-hotel/[slug].
+ *
+ * Calculée à partir des données statiques du dépôt, PAS de la table CoefficientValo :
+ * ces pages sont entièrement prérendues au build, donc leur contenu est de toute façon
+ * figé jusqu'au prochain déploiement. Les lire en base créait une dépendance à un
+ * serveur Postgres joignable au moment du build (CI, build d'image Docker) sans rien
+ * apporter. Le moteur d'estimation, lui, reste branché sur la table (lecture à
+ * l'exécution, éditable par l'admin — cf. OPS.md §7).
+ * La table est seedée depuis ces mêmes constantes : les valeurs sont identiques.
  */
-export async function getCoefficientTable(
+export function getCoefficientTable(
   regionSlug: string,
   departmentSlug?: string
-): Promise<CoefficientRow[]> {
+): CoefficientRow[] {
   const region = REGIONS_BY_SLUG.get(regionSlug);
   if (!region) throw new Error(`Région inconnue : ${regionSlug}`);
 
   const department = departmentSlug ? DEPARTMENTS_BY_SLUG.get(departmentSlug) : undefined;
-  const deptAdjustment = department ? effectiveModifier(department) / region.modifier : 1;
+  const modifier = department ? effectiveModifier(department) : region.modifier;
 
-  const rows = await prisma.coefficientValo.findMany({
-    where: { regionSlug },
-    orderBy: { starRating: "asc" },
-  });
-
-  return rows.map((row) => ({
-    starRating: row.starRating,
-    ebitdaMultipleLow: row.ebitdaMultipleLow,
-    ebitdaMultipleHigh: row.ebitdaMultipleHigh,
-    pricePerRoomLow: Math.round((row.pricePerRoomLowCents * deptAdjustment) / 100),
-    pricePerRoomHigh: Math.round((row.pricePerRoomHighCents * deptAdjustment) / 100),
+  return BASE_COEFFICIENTS.map((base) => ({
+    starRating: base.starRating,
+    ebitdaMultipleLow: base.ebitdaMultipleLow,
+    ebitdaMultipleHigh: base.ebitdaMultipleHigh,
+    pricePerRoomLow: Math.round(base.pricePerRoomLow * modifier),
+    pricePerRoomHigh: Math.round(base.pricePerRoomHigh * modifier),
   }));
 }

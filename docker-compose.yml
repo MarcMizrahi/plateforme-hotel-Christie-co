@@ -1,5 +1,9 @@
-# Phase 0 — DEPLOY.md §4. Socle minimal : postgres + app + caddy (HTTPS auto).
+# Phase 0 — DEPLOY.md §3-4. Socle minimal : postgres + app + caddy (HTTPS auto).
 # Redis/Meilisearch/MinIO/Mailpit arrivent en Phase 1 (CLAUDE.md §3) — pas ici.
+#
+# L'image applicative n'est PAS construite sur le serveur : elle est produite par la CI
+# (.github/workflows/main.yml) et publiée sur GHCR. Le serveur se contente de `pull`.
+# Renseigner APP_IMAGE dans .env.docker (ex. ghcr.io/marcmizrahi/plateforme-hotel-christie-co:latest).
 
 services:
   db:
@@ -17,23 +21,9 @@ services:
       timeout: 5s
       retries: 10
 
-  # Exécute les migrations contre le stage `build` (a le CLI Prisma) — voir Dockerfile.
-  # Un-off : `docker compose --env-file .env.docker run --rm migrate`
-  migrate:
-    build:
-      context: .
-      target: build
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["npx", "prisma", "migrate", "deploy"]
-    profiles: ["tools"]
-
   app:
-    build:
-      context: .
-      target: run
+    image: ${APP_IMAGE}
+    pull_policy: always
     restart: unless-stopped
     env_file: .env
     ports:

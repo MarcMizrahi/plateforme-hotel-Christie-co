@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { computeValuation } from "@/lib/valuation";
+import { computeValuation, getCoefficientTable } from "@/lib/valuation";
+import { BASE_COEFFICIENTS } from "@/data/coefficients";
+import { REGIONS_BY_SLUG } from "@/data/geo";
 import type { CoefficientValo } from "@/generated/prisma/client";
 
 function makeCoefficient(overrides: Partial<CoefficientValo> = {}): CoefficientValo {
@@ -119,5 +121,44 @@ describe("computeValuation", () => {
     );
 
     expect(paris.valueLowCents).toBeGreaterThan(genericIdf.valueLowCents);
+  });
+});
+
+describe("getCoefficientTable", () => {
+  it("matches, for a region, the exact values prisma/seed.ts writes into CoefficientValo", () => {
+    // Verrou anti-dérive : les pages SEO lisent les constantes statiques, le moteur
+    // d'estimation lit la table seedée. Les deux doivent rester alignés.
+    const regionSlug = "occitanie";
+    const region = REGIONS_BY_SLUG.get(regionSlug)!;
+
+    const table = getCoefficientTable(regionSlug);
+
+    expect(table).toHaveLength(BASE_COEFFICIENTS.length);
+    for (const base of BASE_COEFFICIENTS) {
+      const row = table.find((r) => r.starRating === base.starRating)!;
+      const seededLowCents = Math.round(base.pricePerRoomLow * region.modifier * 100);
+      const seededHighCents = Math.round(base.pricePerRoomHigh * region.modifier * 100);
+
+      expect(row.pricePerRoomLow).toBe(Math.round(seededLowCents / 100));
+      expect(row.pricePerRoomHigh).toBe(Math.round(seededHighCents / 100));
+      expect(row.ebitdaMultipleLow).toBe(base.ebitdaMultipleLow);
+      expect(row.ebitdaMultipleHigh).toBe(base.ebitdaMultipleHigh);
+    }
+  });
+
+  it("applies the department modifier for markets that deviate from their region", () => {
+    const idf = getCoefficientTable("ile-de-france");
+    const paris = getCoefficientTable("ile-de-france", "75-paris");
+    const seineEtMarne = getCoefficientTable("ile-de-france", "77-seine-et-marne");
+
+    expect(paris[3].pricePerRoomLow).toBeGreaterThan(idf[3].pricePerRoomLow);
+    expect(seineEtMarne[3].pricePerRoomLow).toBeLessThan(idf[3].pricePerRoomLow);
+  });
+
+  it("falls back to the plain region values for a department without an override", () => {
+    const bretagne = getCoefficientTable("bretagne");
+    const cotesDarmor = getCoefficientTable("bretagne", "22-cotes-darmor");
+
+    expect(cotesDarmor).toEqual(bretagne);
   });
 });
