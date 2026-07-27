@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/*
+ * Identité visuelle — BRAND.md §4 : bleu nuit profond + doré discret + gris chauds.
+ * Une seule palette, pas de bascule sombre : le produit est un outil B2B professionnel
+ * consulté en pleine lumière (réception d'hôtel) autant que le soir ; on privilégie la
+ * lisibilité et la constance sur toutes les pages plutôt qu'un thème sombre distinct.
+ */
+:root {
+  --color-navy-950: #0b1220;
+  --color-navy-900: #101a2e;
+  --color-navy-800: #16233d;
+  --color-navy-700: #1f3155;
+  --color-navy-600: #2c4470;
+
+  --color-gold-700: #8a6a2e;
+  --color-gold-600: #a8823c;
+  --color-gold-500: #c39b4e;
+  --color-gold-400: #d9b96a;
+
+  --color-warm-50: #faf8f5;
+  --color-warm-100: #f2ede5;
+  --color-warm-200: #e6ddd0;
+  --color-warm-500: #8a8072;
+  --color-warm-700: #4d463d;
+
+  --background: var(--color-warm-50);
+  --foreground: var(--color-navy-950);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-navy-950: var(--color-navy-950);
+  --color-navy-900: var(--color-navy-900);
+  --color-navy-800: var(--color-navy-800);
+  --color-navy-700: var(--color-navy-700);
+  --color-navy-600: var(--color-navy-600);
+
+  --color-gold-700: var(--color-gold-700);
+  --color-gold-600: var(--color-gold-600);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-400: var(--color-gold-400);
+
+  --color-warm-50: var(--color-warm-50);
+  --color-warm-100: var(--color-warm-100);
+  --color-warm-200: var(--color-warm-200);
+  --color-warm-500: var(--color-warm-500);
+  --color-warm-700: var(--color-warm-700);
+
+  --font-serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-serif);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
