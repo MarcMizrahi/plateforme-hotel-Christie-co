@@ -1,0 +1,4 @@
+Ce dossier accueille les fichiers statiques servis à la racine du site
+(images Open Graph, éventuels favicons complémentaires…). Il est aujourd'hui vide,
+mais doit exister dans le dépôt : le Dockerfile le copie dans l'image
+(`COPY --from=build /app/public ./public`), et git ne versionne pas les dossiers vides.

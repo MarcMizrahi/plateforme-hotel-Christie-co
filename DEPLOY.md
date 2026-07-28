@@ -402,7 +402,16 @@ La pile a été montée et testée en local sur un clone neuf du dépôt (`git a
    les guillemets** des valeurs (contrairement à `env_file` de compose) : `DATABASE_URL`
    arrivait invalide (`P1013`). → passe aussi par `tools`.
 
-**Reste non vérifié** : l'architecture **arm64** (l'environnement de test est amd64) et
-donc le build sur runner `ubuntu-24.04-arm`, ainsi que l'obtention d'un certificat
-Let's Encrypt sur un vrai domaine (le test local utilise le certificat auto-signé que
-Caddy génère pour `localhost`).
+**Troisième défaut, trouvé par la CI et non par le test local** : `COPY /app/public`
+échouait sur un `checkout` propre. Le dossier `public/` avait été vidé de ses SVG de
+démonstration, et **git ne versionne pas les dossiers vides** — il existait donc encore
+sur le disque de la machine de test, mais pas dans le dépôt. Corrigé par un
+`public/.gitkeep` versionné.
+
+> **Leçon de méthode** : toujours construire l'image depuis un export propre du dépôt
+> (`git archive`), jamais depuis le répertoire de travail, sinon les fichiers non
+> versionnés masquent les erreurs. Le test de la pile compose partait bien d'un export
+> propre ; le build d'image, lui, était parti du répertoire de travail — d'où l'angle mort.
+
+**Reste non vérifié** : l'obtention d'un certificat Let's Encrypt sur un vrai domaine
+(le test local utilise le certificat auto-signé que Caddy génère pour `localhost`).
