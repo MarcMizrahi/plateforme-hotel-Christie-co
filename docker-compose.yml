@@ -22,12 +22,33 @@ services:
       retries: 10
 
   app:
-    image: ${APP_IMAGE}
+    # Valeur de repli : sans elle, un `docker compose up -d db` (usage courant en local,
+    # où seule la base est utile) échoue tant qu'APP_IMAGE n'est pas défini.
+    image: ${APP_IMAGE:-ghcr.io/marcmizrahi/plateforme-hotel-christie-co:latest}
     pull_policy: always
     restart: unless-stopped
     env_file: .env
     ports:
       - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Conteneur utilitaire pour les tâches qui ont besoin des dépendances de développement
+  # (CLI Prisma, tsx) : migrations et seed. L'image applicative ne peut pas les jouer —
+  # la sortie standalone de Next ne trace que ce que le code importe, donc ni le CLI
+  # Prisma ni `dotenv`, tous deux requis par prisma.config.ts.
+  # Le node_modules est un volume nommé : installé une fois, réutilisé ensuite.
+  #   docker compose --env-file .env.docker --profile tools run --rm tools "<commande>"
+  tools:
+    image: node:20-alpine
+    profiles: ["tools"]
+    working_dir: /repo
+    entrypoint: ["sh", "-c"]
+    volumes:
+      - .:/repo
+      - tools_node_modules:/repo/node_modules
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
@@ -51,3 +72,4 @@ volumes:
   db_data:
   caddy_data:
   caddy_config:
+  tools_node_modules:

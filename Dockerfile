@@ -22,10 +22,10 @@ ENV PORT=3000
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-# Migrations depuis l'image publiée (DEPLOY.md §7). La sortie standalone ne trace que
-# ce que le code applicatif importe : le CLI Prisma n'en fait pas partie, on embarque
-# donc seulement de quoi le faire tourner via `npx --yes prisma@<version>`.
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/prisma.config.ts ./
+# Volontairement, ni `prisma/` ni `prisma.config.ts` ne sont embarqués : faire tourner
+# le CLI Prisma depuis cette image a été tenté puis abandonné — la sortie standalone ne
+# trace que ce que le code applicatif importe, donc ni le CLI ni `dotenv`, que
+# prisma.config.ts exige (échec « Cannot find module 'prisma/config' », reproduit en
+# local). Les migrations passent par le service `tools` de docker-compose.yml.
 EXPOSE 3000
 CMD ["node", "server.js"]

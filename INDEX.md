@@ -50,7 +50,9 @@
 - Documentation : complète (12 fichiers).
 - Code : Phase 0 (MVP de validation marché) implémentée — voir PLAN.md et README.md.
 - Décisions bloquantes avant mise en ligne : D1 (nom), D2 (statut juridique).
-- Déploiement (DEPLOY.md) : CHECK 1 vert ; bloqué en CHECK 2, aucun hébergement
-  choisi par l'utilisateur pour l'instant. Artefacts de déploiement préparés
-  (Dockerfile, docker-compose.yml, Caddyfile, setup.sh) — non testés par un build
-  réel (pas de Docker-in-Docker dans cet environnement de session).
+- Déploiement (DEPLOY.md) : CHECK 1 vert ; hébergement tranché — Oracle Cloud Always
+  Free (DP15), procédure en §3-ter. Bloqué en CHECK 2 tant que la VM n'est pas créée
+  (action utilisateur) et que D1 n'est pas tranchée (pas de nom de domaine).
+  Artefacts prêts : Dockerfile, docker-compose.yml, Caddyfile, deploy.sh, CI publiant
+  une image arm64 sur GHCR — non testés par un build Docker réel (pas de
+  Docker-in-Docker dans l'environnement de session).

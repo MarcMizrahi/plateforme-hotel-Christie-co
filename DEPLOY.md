@@ -88,6 +88,107 @@ Si Vercel/équivalent : connecter le repo, définir toutes les variables du .env
 l'interface (jamais dans le code), pointer le domaine, Postgres managé obligatoire.
 Reprendre ensuite directement en §5.
 
+## 3-quater. Test de la pile sur une machine locale (recommandé avant la VM)
+
+Permet de valider toute la chaîne sans serveur ni domaine. Prérequis : Docker + Docker
+Compose. L'override `docker-compose.local.yml` construit l'image au lieu de la tirer de
+GHCR, et fait servir Caddy sur `localhost` avec un certificat auto-signé.
+
+```bash
+cp .env.example .env && cp .env.docker.example .env.docker
+# dans .env.docker : DOMAIN=localhost, APP_IMAGE=hotelmarket:local
+# dans .env        : DATABASE_URL=postgresql://hotelmarket:<mdp>@db:5432/hotelmarket?schema=public
+#                    NEXT_PUBLIC_SITE_URL=http://localhost:3000, ADMIN_PASSWORD, ADMIN_SESSION_SECRET
+
+C="docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.local.yml"
+$C build app
+$C up -d db
+$C --profile tools run --rm tools "corepack enable && pnpm install --frozen-lockfile && pnpm prisma migrate deploy"
+$C --profile tools run --rm tools "corepack enable && pnpm db:seed"
+$C up -d app caddy
+curl -s localhost:3000/api/health          # -> {"status":"ok"}
+curl -kI https://localhost/                # -> 200 + en-têtes de sécurité
+```
+Puis dérouler à la main le parcours d'estimation sur <http://localhost:3000>, et l'admin
+sur <http://localhost:3000/admin>.
+
+Pour tout arrêter et repartir de zéro : `$C down -v` (⚠️ `-v` supprime les données).
+
+## 3-ter. Chemin retenu : Oracle Cloud Always Free (DECISIONS.md DP15)
+
+Hébergeur choisi pour la Phase 0 : une VM Oracle Cloud « Always Free », gratuite sans
+limite de durée. Architecture **arm64** (Ampere A1) — d'où l'image `linux/arm64`
+construite par la CI.
+
+### 3-ter.1 Création du compte et de la VM (à faire par l'utilisateur)
+
+1. Compte sur <https://www.oracle.com/cloud/free/> — une carte bancaire est demandée
+   pour vérification d'identité, **sans débit** tant qu'on reste sur les ressources
+   Always Free et qu'on ne fait pas d'« upgrade » explicite.
+2. ⚠️ **La région d'origine (« home region ») ne peut plus être changée ensuite.**
+   Choisir une région UE pour le RGPD (MARKET.md §4.2) : Paris ou Marseille en
+   priorité ; si la capacité ARM y est saturée, Francfort ou Amsterdam.
+3. Créer une instance de calcul :
+   - Image : **Ubuntu 24.04** (variante aarch64)
+   - Shape : **VM.Standard.A1.Flex**, `2 OCPU` / `12 Go` (le maximum Always Free depuis
+     juin 2026 — au-delà, l'instance devient payante)
+   - Volume de démarrage : 50 Go suffit largement
+   - Ajouter sa **clé SSH publique** (garder la clé privée précieusement)
+4. ⚠️ Erreur fréquente « Out of host capacity » : la capacité ARM gratuite est souvent
+   épuisée. Réessayer plus tard, changer de domaine de disponibilité, ou de région.
+5. Ouvrir les ports **80** et **443** — deux endroits, l'oubli du second est le piège
+   classique d'Oracle :
+   - Dans la console : VCN → Security List de la sous-réseau public → règles entrantes
+     `0.0.0.0/0` TCP 80 et 443
+   - Sur la VM elle-même, les images Ubuntu d'Oracle embarquent des règles iptables
+     restrictives :
+     ```bash
+     sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+     sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+     sudo netfilter-persistent save
+     ```
+
+Informations à me transmettre ensuite : **IP publique** et **accès SSH**.
+
+### 3-ter.2 Mise en service (sur la VM)
+
+```bash
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git
+sudo usermod -aG docker "$USER" && newgrp docker
+
+git clone https://github.com/MarcMizrahi/plateforme-hotel-Christie-co.git app && cd app
+cp .env.example .env && cp .env.docker.example .env.docker
+```
+
+Compléter ensuite les deux fichiers (⚠️ jamais de secret dans le dépôt) :
+- `.env.docker` : `POSTGRES_PASSWORD` (générer : `openssl rand -hex 24`), `DOMAIN`,
+  `APP_IMAGE`
+- `.env` : `DATABASE_URL` pointant sur le service `db`
+  (`postgresql://hotelmarket:<mdp>@db:5432/hotelmarket?schema=public`),
+  `NEXT_PUBLIC_SITE_URL=https://<domaine>`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`
+  (`openssl rand -hex 32`), `SMTP_*`
+
+Puis :
+```bash
+./deploy.sh                              # pull + migrations + démarrage + health check
+```
+
+**Première installation uniquement — seeder les coefficients.** Sans cette étape, le
+moteur d'estimation renvoie « Coefficients de valorisation indisponibles » : c'est le
+produit qui ne marche pas, donc CHECK 5 échoue. Le seed passe par le service `tools`
+(cf. docker-compose.yml), qui dispose des dépendances de développement :
+```bash
+docker compose --env-file .env.docker --profile tools run --rm tools \
+  "corepack enable && pnpm db:seed"
+```
+Vérification : `docker compose --env-file .env.docker exec db psql -U hotelmarket -d hotelmarket -c 'select count(*) from "CoefficientValo";'` → doit renvoyer 78.
+
+⚠️ `corepack enable` est nécessaire à **chaque** invocation de `tools` : son shim `pnpm`
+n'est pas dans le volume `node_modules` persistant, contrairement aux dépendances.
+
+**CHECK 3-ter** : `docker compose --env-file .env.docker ps` → services `Up` ;
+`curl -I https://<domaine>` depuis l'extérieur → certificat Caddy valide.
+
 ## 4. Lancement de l'application (VPS)
 
 L'app Next.js tourne en conteneur pour la reproductibilité. Si absent, créer :
@@ -182,27 +283,35 @@ crontab -l 2>/dev/null; echo '0 3 * * * docker compose -f ~/app/docker-compose.y
 L'image n'est plus construite sur le serveur : la CI la publie sur GHCR, le serveur `pull`.
 
 ```bash
-cd ~/app
-docker compose --env-file .env.docker pull app
-docker compose --env-file .env.docker run --rm app npx --yes prisma@7.9.1 migrate deploy
-docker compose --env-file .env.docker up -d app     # coupure ~2-5 s, acceptable Phase 0
+cd ~/app && git pull       # met à jour compose/Caddyfile/migrations, pas l'image
+./deploy.sh                # pull + migrations + bascule + health check
 git tag deploy-$(date +%Y%m%d-%H%M) && git push --tags
 ```
+`deploy.sh` épingle automatiquement la version du CLI Prisma en la lisant dans
+`package.json` — rien à maintenir à la main. Pour déployer un tag précis (ou revenir
+en arrière) : `./deploy.sh <tag-ou-sha>`.
+
 Vérif post-update minimale : /api/health + un parcours d'estimation.
 
 Repo privé : `docker login ghcr.io` une seule fois sur le serveur, avec un PAT
 portant le scope `read:packages` — seul secret à créer côté serveur.
 
-Deux points sur la ligne de migration :
-- Le CLI Prisma est récupéré par `npx --yes prisma@<version>` (réseau requis) et non
-  embarqué dans l'image : la sortie standalone de Next ne trace que ce que le code
-  applicatif importe, et le CLI n'en fait pas partie. La version est épinglée
-  volontairement — **la garder alignée avec `devDependencies.prisma` du dépôt**.
-  L'image embarque en revanche `prisma/` et `prisma.config.ts`, nécessaires au CLI.
-- Alternative sans réseau ni épinglage manuel : laisser la CI jouer les migrations
-  (le job `migrate` de `.github/workflows/main.yml` le fait déjà avec le secret
-  `DATABASE_URL`) et retirer cette ligne. À privilégier si la base est joignable
-  depuis GitHub Actions ; à garder ici si la base n'est accessible que du serveur.
+Pourquoi les migrations tournent sur le serveur et non dans la CI : la base Postgres est
+un conteneur interne à la VM, non exposé sur Internet (et c'est bien ainsi) — GitHub
+Actions ne peut donc pas l'atteindre.
+
+Pourquoi elles passent par le service `tools` et non par l'image applicative : jouer le
+CLI Prisma depuis l'image publiée a été tenté puis abandonné après échec reproduit en
+local (`Cannot find module 'prisma/config'`). La sortie standalone de Next ne trace que
+ce que le code applicatif importe — ni le CLI Prisma ni `dotenv`, tous deux requis par
+`prisma.config.ts`. Le service `tools` monte le dépôt et installe les dépendances dans
+un volume nommé, réutilisé d'un déploiement à l'autre.
+
+Si un jour la base devient managée et joignable publiquement, l'alternative est de
+rendre le job de migration à la CI et d'alléger `deploy.sh` d'autant.
+
+Repo public : l'image GHCR est publique, aucun `docker login` n'est nécessaire sur le
+serveur. Si le dépôt repassait en privé, il faudrait un PAT `read:packages`.
 
 ## 8. Rollback
 
@@ -223,16 +332,24 @@ copie hors-site des backups, contenu des mentions légales).
 
 ---
 
-## Note de session (CI Azure/GHCR en place, hébergement pas encore provisionné)
+## Note de session (cible Oracle Always Free, VM pas encore provisionnée)
 
 CHECK 1 est vert (build/lint/test + greps propres). Le nom de marque est paramétré via
 `NEXT_PUBLIC_BRAND_NAME` (et non `NEXT_PUBLIC_SITE_NAME` cité plus haut : différence de
 nom sans impact, D1 toujours ouverte).
 
-CHECK 2+ restent bloqués : ni serveur ni base de production à ce jour. Le workflow
-`.github/workflows/main.yml` cible Azure Web App + GHCR ; il suppose des ressources et
-des secrets qui doivent exister avant de pouvoir aboutir :
-`AZURE_WEBAPP_PUBLISH_PROFILE`, `DATABASE_URL` (secrets) et `AZURE_WEBAPP_NAME` (variable).
+CHECK 2+ restent bloqués : la VM Oracle n'existe pas encore (création côté utilisateur,
+§3-ter.1). Le workflow `.github/workflows/main.yml` ne cible plus Azure — hébergement
+tranché en faveur d'Oracle Always Free (DECISIONS.md DP15), les jobs `migrate` et
+`deploy` Azure ont été retirés :
+- ils exigeaient des ressources payantes (App Service conteneur = B1 minimum) ;
+- le job `migrate` supposait une base joignable depuis GitHub Actions, ce qui n'est pas
+  le cas avec un Postgres interne à la VM.
+
+L'image est désormais construite en **linux/arm64** (Ampere A1) sur les runners
+`ubuntu-24.04-arm`, gratuits et illimités sur ce dépôt public. Corollaire : elle ne
+tourne pas sur une machine amd64 — pour un déploiement x86, ajouter `linux/amd64` aux
+`platforms` du job `image`.
 
 Déjà en place dans le dépôt :
 - `next.config.ts` : `output: "standalone"`.
@@ -241,6 +358,7 @@ Déjà en place dans le dépôt :
   `.env.docker.example`.
 - `docker-compose.yml` : le service `app` consomme l'image publiée (`${APP_IMAGE}`),
   il ne construit plus rien sur le serveur.
+- `deploy.sh` : pull, migrations, bascule et health check en une commande (§7).
 
 **Corrections rendues nécessaires par la CI** (le build échouait avant, de deux façons) :
 1. `prisma generate` n'était joué nulle part en CI et le client généré est gitignoré →
@@ -255,8 +373,36 @@ Déjà en place dans le dépôt :
    table à l'exécution (éditable par l'admin — OPS.md §7). Verrouillé par des tests
    (`src/lib/valuation.test.ts`) qui comparent les deux sources.
 
-**Non vérifié — à retester au premier déploiement réel** : le Docker daemon n'est pas
-disponible dans l'environnement de session (pas de Docker-in-Docker), donc ni le build
-d'image ni la ligne `npx --yes prisma@... migrate deploy` du §7 n'ont pu être exécutés.
-Le build applicatif lui-même a en revanche été validé sans base joignable, ce qui était
-le point de rupture principal.
+### Validation locale de la pile complète (faite, 17/17)
+
+La pile a été montée et testée en local sur un clone neuf du dépôt (`git archive`, sans
+`node_modules`, pour reproduire ce que verra la VM). Résultats :
+
+| Élément | Résultat |
+|---|---|
+| Build de l'image (Dockerfile multi-stage, sortie standalone) | OK — 186 Mo |
+| `docker compose up db` + healthcheck | OK |
+| Migrations Prisma via le service `tools` | OK |
+| Seed des 78 coefficients + vérification en base | OK |
+| `deploy.sh` de bout en bout (pull → migrations → bascule → health) | OK |
+| Caddy : HTTPS, HSTS, X-Content-Type-Options, X-Frame-Options, redirection 80→443 | OK |
+| Parcours d'estimation complet → page résultat avec fourchette | OK |
+| Admin : redirection sans session, connexion, lead visible avec sa source UTM | OK |
+| Export CSV téléchargé, contenant le lead et l'UTM | OK |
+| robots.txt, sitemap.xml (avec les pages `prix-hotel`) | OK |
+| Erreurs console navigateur | aucune |
+
+**Deux défauts réels trouvés et corrigés à cette occasion** — ils auraient tous deux fait
+échouer le déploiement sur la VM :
+1. `prisma migrate deploy` depuis l'image publiée échouait
+   (`Cannot find module 'prisma/config'`) : la sortie standalone ne trace ni le CLI
+   Prisma ni `dotenv`. → service `tools` introduit dans docker-compose.yml ; les `COPY`
+   de `prisma/` et `prisma.config.ts` ont été retirés de l'image, devenus inutiles.
+2. La commande de seed documentée utilisait `docker run --env-file`, qui **ne retire pas
+   les guillemets** des valeurs (contrairement à `env_file` de compose) : `DATABASE_URL`
+   arrivait invalide (`P1013`). → passe aussi par `tools`.
+
+**Reste non vérifié** : l'architecture **arm64** (l'environnement de test est amd64) et
+donc le build sur runner `ubuntu-24.04-arm`, ainsi que l'obtention d'un certificat
+Let's Encrypt sur un vrai domaine (le test local utilise le certificat auto-signé que
+Caddy génère pour `localhost`).

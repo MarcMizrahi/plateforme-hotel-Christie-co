@@ -38,9 +38,10 @@ Campings, chambres d'hôtes, résidences de tourisme : marchés adjacents avec l
 vendeurs-cédants. Par défaut : hors périmètre jusqu'à validation du cœur hôtelier
 (PLAN.md Phase 7). Ne rouvrir qu'avec des données.
 
-### D7 — Hébergeur de production
-Scaleway / OVH / autre UE. Critères : Postgres managé abordable, S3-compatible,
-localisation France. À trancher en Phase 6, sans impact avant.
+### ~~D7 — Hébergeur de production~~ → tranchée, voir DP15
+Tranchée en avance de phase (contrainte « zéro dépense ») : Oracle Cloud Always Free.
+À rouvrir si le GATE de Phase 0 est franchi et que la charge ou le besoin de Postgres
+managé le justifient.
 
 ---
 
@@ -112,7 +113,30 @@ localisation France. À trancher en Phase 6, sans impact avant.
   Décision de l'utilisateur, prise en session. Conséquence : mises à jour par `pull`
   (DEPLOY.md §7), rollback en repointant `APP_IMAGE` sur un tag antérieur, et
   authentification `docker login ghcr.io` requise sur le serveur si le dépôt est privé.
+- **DP15 — [2026-07] Hébergement Phase 0 : VM Oracle Cloud « Always Free »** (tranche D7
+  en avance de phase). Décision de l'utilisateur, sous contrainte explicite de zéro
+  dépense. Justification : seule offre gratuite sans limite de durée qui soit
+  *always-on* (donc compatible avec le crawl SEO, cœur de la Phase 0), autorise un usage
+  commercial, et fait tourner tel quel le socle docker-compose + Caddy + Postgres déjà
+  écrit. Écartés : Azure (App Service conteneur ≥ B1 payant), Vercel Hobby (CGU
+  non-commerciales), Render/Koyeb gratuits (mise en veille = mauvais pour le crawl),
+  Lovable (incompatible Next.js, domaine personnalisé payant).
+  Conséquences : architecture **arm64** (Ampere A1) → la CI publie une image
+  `linux/arm64` ; migrations jouées sur le serveur (`deploy.sh`) car la base n'est pas
+  joignable depuis GitHub Actions.
+  Réserves connues : capacité ARM parfois indisponible à la création, région d'origine
+  non modifiable après coup, instances inactives récupérables par Oracle.
+  Réversible : le socle Docker est portable vers n'importe quel VPS ; seul le
+  `platforms:` de la CI serait à ajuster pour une cible x86.
 
+- **DP16 — [2026-07] Migrations et seed passent par un service `tools`** (node:20-alpine,
+  dépôt monté, node_modules en volume nommé) et non par l'image applicative. Décision
+  imposée par un échec reproduit en test local : la sortie standalone de Next ne trace
+  que ce que le code importe, donc ni le CLI Prisma ni `dotenv`, tous deux requis par
+  `prisma.config.ts` (`Cannot find module 'prisma/config'`). Conséquence : l'image de
+  production reste minimale (186 Mo) et n'embarque plus `prisma/` ni `prisma.config.ts`.
+  Réversible : si la base devient managée et joignable publiquement, les migrations
+  peuvent repartir en CI.
 ---
 
 ## Règles pour Claude Code
