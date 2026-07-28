@@ -1,10 +1,14 @@
-# .github/workflows/deploy-azure.yml
-# Remplace build-artifact.yml : build de l'artefact (GHCR) PUIS déploiement Azure Web App.
-# Prérequis (une seule fois, cf. DEPLOY-AZURE.md) :
-#   - secrets GitHub : AZURE_WEBAPP_PUBLISH_PROFILE, DATABASE_URL
-#   - variable GitHub : AZURE_WEBAPP_NAME
+# CI : qualité + publication de l'image applicative sur GHCR.
+#
+# Cible de déploiement : VM Oracle Cloud Always Free (Ampere A1 = arm64), cf. DEPLOY.md §3-ter
+# et DECISIONS.md DP15. L'image est donc construite pour linux/arm64, nativement, sur les
+# runners ARM de GitHub — gratuits et illimités sur un dépôt public.
+#
+# Le déploiement lui-même n'est PAS fait ici : la base Postgres tourne dans la VM et n'est
+# pas joignable depuis GitHub Actions. Le serveur tire l'image et applique les migrations
+# via ./deploy.sh (DEPLOY.md §7).
 
-name: Deploy to Azure Web App
+name: CI & image (GHCR)
 
 on:
   push:
@@ -16,8 +20,8 @@ permissions:
   packages: write
 
 concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false   # ne jamais annuler un déploiement en cours
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   quality:
@@ -38,13 +42,12 @@ jobs:
       - run: pnpm test
 
   image:
-    name: Build & push artifact (GHCR)
+    name: Build & push image arm64 (GHCR)
     needs: quality
-    runs-on: ubuntu-latest
-    outputs:
-      image_sha: ghcr.io/${{ github.repository }}:${{ github.sha }}
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -61,50 +64,9 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  migrate:
-    name: Migrations Prisma (avant bascule)
-    needs: image
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: prisma migrate deploy
-        run: pnpm prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}   # URL Azure PostgreSQL, sslmode=require
-
-  deploy:
-    name: Déploiement Web App
-    needs: [image, migrate]
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Deploy container to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: ghcr.io/${{ github.repository }}:${{ github.sha }}   # tag immuable, pas :latest
-
-      - name: Vérification santé post-déploiement
-        run: |
-          echo "Attente du démarrage..."
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/health" || true)
-            [ "$code" = "200" ] && echo "OK — /api/health = 200" && exit 0
-            sleep 10
-          done
-          echo "::error::Le health check ne répond pas après 5 min" && exit 1
