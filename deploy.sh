@@ -19,22 +19,19 @@ if [ $# -ge 1 ]; then
   echo "==> Image forcée : ${APP_IMAGE}"
 fi
 
-# Le CLI Prisma n'est pas embarqué dans la sortie standalone (cf. Dockerfile) : on le
-# récupère à la volée, en épinglant la version du projet pour rester déterministe.
-PRISMA_VERSION="$(sed -n 's/.*"prisma": *"\^\{0,1\}\([0-9][0-9.]*\)".*/\1/p' package.json | head -1)"
-if [ -z "$PRISMA_VERSION" ]; then
-  echo "ERREUR: version de prisma introuvable dans package.json" >&2
-  exit 1
-fi
-
 echo "==> Récupération de l'image..."
 $COMPOSE pull app
 
 echo "==> Base de données prête ?"
 $COMPOSE up -d db
 
-echo "==> Migrations (prisma@${PRISMA_VERSION})..."
-$COMPOSE run --rm app npx --yes "prisma@${PRISMA_VERSION}" migrate deploy
+# Les migrations passent par le conteneur `tools` et non par l'image applicative :
+# celle-ci ne contient que la sortie standalone de Next, qui ne trace ni le CLI Prisma
+# ni `dotenv` — tous deux requis par prisma.config.ts. Vérifié en local (DEPLOY.md).
+# La version de Prisma vient du lockfile, donc rien à épingler à la main.
+echo "==> Migrations..."
+$COMPOSE --profile tools run --rm tools \
+  "corepack enable && pnpm install --frozen-lockfile && pnpm prisma migrate deploy"
 
 echo "==> Bascule de l'application..."
 $COMPOSE up -d app caddy

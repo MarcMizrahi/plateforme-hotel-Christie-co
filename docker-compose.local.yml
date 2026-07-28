@@ -1,0 +1,16 @@
+# Override pour tester la pile de production sur une machine locale, sans registre.
+#
+#   docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# Différences avec la production (cf. DEPLOY.md §3-ter) :
+#   - l'image est construite localement au lieu d'être tirée de GHCR ;
+#   - Caddy sert `localhost` avec un certificat auto-signé qu'il génère lui-même
+#     (mettre DOMAIN=localhost dans .env.docker), donc `curl -k` est nécessaire.
+
+services:
+  app:
+    build:
+      context: .
+      target: run
+    image: hotelmarket:local
+    pull_policy: never

@@ -88,6 +88,32 @@ Si Vercel/équivalent : connecter le repo, définir toutes les variables du .env
 l'interface (jamais dans le code), pointer le domaine, Postgres managé obligatoire.
 Reprendre ensuite directement en §5.
 
+## 3-quater. Test de la pile sur une machine locale (recommandé avant la VM)
+
+Permet de valider toute la chaîne sans serveur ni domaine. Prérequis : Docker + Docker
+Compose. L'override `docker-compose.local.yml` construit l'image au lieu de la tirer de
+GHCR, et fait servir Caddy sur `localhost` avec un certificat auto-signé.
+
+```bash
+cp .env.example .env && cp .env.docker.example .env.docker
+# dans .env.docker : DOMAIN=localhost, APP_IMAGE=hotelmarket:local
+# dans .env        : DATABASE_URL=postgresql://hotelmarket:<mdp>@db:5432/hotelmarket?schema=public
+#                    NEXT_PUBLIC_SITE_URL=http://localhost:3000, ADMIN_PASSWORD, ADMIN_SESSION_SECRET
+
+C="docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.local.yml"
+$C build app
+$C up -d db
+$C --profile tools run --rm tools "corepack enable && pnpm install --frozen-lockfile && pnpm prisma migrate deploy"
+$C --profile tools run --rm tools "corepack enable && pnpm db:seed"
+$C up -d app caddy
+curl -s localhost:3000/api/health          # -> {"status":"ok"}
+curl -kI https://localhost/                # -> 200 + en-têtes de sécurité
+```
+Puis dérouler à la main le parcours d'estimation sur <http://localhost:3000>, et l'admin
+sur <http://localhost:3000/admin>.
+
+Pour tout arrêter et repartir de zéro : `$C down -v` (⚠️ `-v` supprime les données).
+
 ## 3-ter. Chemin retenu : Oracle Cloud Always Free (DECISIONS.md DP15)
 
 Hébergeur choisi pour la Phase 0 : une VM Oracle Cloud « Always Free », gratuite sans
@@ -149,16 +175,16 @@ Puis :
 
 **Première installation uniquement — seeder les coefficients.** Sans cette étape, le
 moteur d'estimation renvoie « Coefficients de valorisation indisponibles » : c'est le
-produit qui ne marche pas, donc CHECK 5 échoue. Le seed est un script TypeScript qui a
-besoin des dépendances de développement, absentes de l'image de production ; on le joue
-donc dans un conteneur jetable, attaché au réseau de compose pour que l'hôte `db` se
-résolve :
+produit qui ne marche pas, donc CHECK 5 échoue. Le seed passe par le service `tools`
+(cf. docker-compose.yml), qui dispose des dépendances de développement :
 ```bash
-docker run --rm -v "$PWD:/repo" -w /repo --env-file .env \
-  --network "$(docker compose --env-file .env.docker ps --format '{{.Networks}}' db | head -1)" \
-  node:20-alpine sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm db:seed"
+docker compose --env-file .env.docker --profile tools run --rm tools \
+  "corepack enable && pnpm db:seed"
 ```
-Vérification : `docker compose --env-file .env.docker exec db psql -U hotelmarket -d hotelmarket -c "select count(*) from \"CoefficientValo\";"` → doit renvoyer 78.
+Vérification : `docker compose --env-file .env.docker exec db psql -U hotelmarket -d hotelmarket -c 'select count(*) from "CoefficientValo";'` → doit renvoyer 78.
+
+⚠️ `corepack enable` est nécessaire à **chaque** invocation de `tools` : son shim `pnpm`
+n'est pas dans le volume `node_modules` persistant, contrairement aux dépendances.
 
 **CHECK 3-ter** : `docker compose --env-file .env.docker ps` → services `Up` ;
 `curl -I https://<domaine>` depuis l'extérieur → certificat Caddy valide.
@@ -272,10 +298,14 @@ portant le scope `read:packages` — seul secret à créer côté serveur.
 
 Pourquoi les migrations tournent sur le serveur et non dans la CI : la base Postgres est
 un conteneur interne à la VM, non exposé sur Internet (et c'est bien ainsi) — GitHub
-Actions ne peut donc pas l'atteindre. Le CLI Prisma est récupéré par
-`npx --yes prisma@<version>` car la sortie standalone de Next ne trace que ce que le
-code applicatif importe, et le CLI n'en fait pas partie ; l'image embarque en revanche
-`prisma/` et `prisma.config.ts`, dont le CLI a besoin.
+Actions ne peut donc pas l'atteindre.
+
+Pourquoi elles passent par le service `tools` et non par l'image applicative : jouer le
+CLI Prisma depuis l'image publiée a été tenté puis abandonné après échec reproduit en
+local (`Cannot find module 'prisma/config'`). La sortie standalone de Next ne trace que
+ce que le code applicatif importe — ni le CLI Prisma ni `dotenv`, tous deux requis par
+`prisma.config.ts`. Le service `tools` monte le dépôt et installe les dépendances dans
+un volume nommé, réutilisé d'un déploiement à l'autre.
 
 Si un jour la base devient managée et joignable publiquement, l'alternative est de
 rendre le job de migration à la CI et d'alléger `deploy.sh` d'autant.
@@ -343,9 +373,36 @@ Déjà en place dans le dépôt :
    table à l'exécution (éditable par l'admin — OPS.md §7). Verrouillé par des tests
    (`src/lib/valuation.test.ts`) qui comparent les deux sources.
 
-**Non vérifié — à retester au premier déploiement réel** : le Docker daemon n'est pas
-disponible dans l'environnement de session (pas de Docker-in-Docker), donc ni le build
-d'image, ni `deploy.sh`, ni la récupération `npx --yes prisma@...` n'ont pu être
-exécutés. Le build applicatif lui-même a en revanche été validé sans base joignable, ce
-qui était le point de rupture principal ; la syntaxe de `deploy.sh` et ses extractions
-(`prisma` version, base de `APP_IMAGE`) ont été testées isolément.
+### Validation locale de la pile complète (faite, 17/17)
+
+La pile a été montée et testée en local sur un clone neuf du dépôt (`git archive`, sans
+`node_modules`, pour reproduire ce que verra la VM). Résultats :
+
+| Élément | Résultat |
+|---|---|
+| Build de l'image (Dockerfile multi-stage, sortie standalone) | OK — 186 Mo |
+| `docker compose up db` + healthcheck | OK |
+| Migrations Prisma via le service `tools` | OK |
+| Seed des 78 coefficients + vérification en base | OK |
+| `deploy.sh` de bout en bout (pull → migrations → bascule → health) | OK |
+| Caddy : HTTPS, HSTS, X-Content-Type-Options, X-Frame-Options, redirection 80→443 | OK |
+| Parcours d'estimation complet → page résultat avec fourchette | OK |
+| Admin : redirection sans session, connexion, lead visible avec sa source UTM | OK |
+| Export CSV téléchargé, contenant le lead et l'UTM | OK |
+| robots.txt, sitemap.xml (avec les pages `prix-hotel`) | OK |
+| Erreurs console navigateur | aucune |
+
+**Deux défauts réels trouvés et corrigés à cette occasion** — ils auraient tous deux fait
+échouer le déploiement sur la VM :
+1. `prisma migrate deploy` depuis l'image publiée échouait
+   (`Cannot find module 'prisma/config'`) : la sortie standalone ne trace ni le CLI
+   Prisma ni `dotenv`. → service `tools` introduit dans docker-compose.yml ; les `COPY`
+   de `prisma/` et `prisma.config.ts` ont été retirés de l'image, devenus inutiles.
+2. La commande de seed documentée utilisait `docker run --env-file`, qui **ne retire pas
+   les guillemets** des valeurs (contrairement à `env_file` de compose) : `DATABASE_URL`
+   arrivait invalide (`P1013`). → passe aussi par `tools`.
+
+**Reste non vérifié** : l'architecture **arm64** (l'environnement de test est amd64) et
+donc le build sur runner `ubuntu-24.04-arm`, ainsi que l'obtention d'un certificat
+Let's Encrypt sur un vrai domaine (le test local utilise le certificat auto-signé que
+Caddy génère pour `localhost`).

@@ -129,6 +129,14 @@ managé le justifient.
   Réversible : le socle Docker est portable vers n'importe quel VPS ; seul le
   `platforms:` de la CI serait à ajuster pour une cible x86.
 
+- **DP16 — [2026-07] Migrations et seed passent par un service `tools`** (node:20-alpine,
+  dépôt monté, node_modules en volume nommé) et non par l'image applicative. Décision
+  imposée par un échec reproduit en test local : la sortie standalone de Next ne trace
+  que ce que le code importe, donc ni le CLI Prisma ni `dotenv`, tous deux requis par
+  `prisma.config.ts` (`Cannot find module 'prisma/config'`). Conséquence : l'image de
+  production reste minimale (186 Mo) et n'embarque plus `prisma/` ni `prisma.config.ts`.
+  Réversible : si la base devient managée et joignable publiquement, les migrations
+  peuvent repartir en CI.
 ---
 
 ## Règles pour Claude Code
